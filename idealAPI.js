@@ -86,7 +86,8 @@ for await (let { publicKey, timestamp, type, data} of SW.getMessages()) {
 // Create a message that should be recieved by someone. You can send messages to contacts or to yourself.
 // The type can be anything you want so that you can add features in your application
 // The data should be JSON-serializable
-const timestamp = await SW.sendMessage(publicKey, type, data)
+// Can send a message to multiple people at once by specifying an array of keys
+const timestamp = await SW.sendMessage([publicKey], type, data)
 
 // Pre-canned message types
 
