@@ -11,29 +11,37 @@ The goals of this project are:
 	- Abstract away all the encryption and message parsing, updated loading, etc
 	- Support one to one and group chats
 	- Avoid node-isms like Buffer and Node streams
+	- Support multiple Dat archives for a single identity
 	- Support multiple identities at once
 - Even if someone has learned of a person's dat, they shouldn't be able to learn who they're talking to
 
 How it works, high level:
 - Each identity will have one or more dat archives
+- Identities will always be referred to using their original dat key even if that dat isn't in use anymore
 - The archive will look like:
     - `identity.pub` The ed25519 public key for this identity, used to verify that this dat is who it says it is
-    - `verification.sign` The dat URL signed by the identity in `identity.pub`, used to verify this dat does indeed belong to that identity
-	- `key.pub` The x25519-xsalsa20-poly1305 public key used for encrypting data using `nacl.box`
+    - `verification.sign` The dat URL + the public key signed by the identity in `identity.pub`, used to verify this dat, and it's public key, does indeed belong to that identity
+	- `publicKey.pub` The x25519-xsalsa20-poly1305 public key used for encrypting data using `nacl.box`
 	- `posts/` The directory storing all the person's posts
-		- `{timestamp}.json.swep` All posts are made with a timestamp for ordering and are encoded in the SWE format
+		- `{random}.json.swep` All posts are encoded in the SWEP format, and the post name should be random data. E.g. Hash of random bytes.
 - Users share their archive URLs with each other in order to communicate
 - A user will attempt to decrypt each of the other's posts and take note of any posts addressed to them
-- The posts themselves are JSON data so applications can use whatever they want for the contents
-	- Only limitation is that the top level should be an object with the key `type` which is a string for the type of message
+- The posts themselves can store either binary data, or JSON structure data
+- Posts are tagged with a `type` string to enable filtering for different applications.
 - Everything is encrypted and a person can only see messages addressed to them
 - Users should primarily exchange URLs through QR codes and cameras, but they could also copy-paste the links and share them through other means
 
 SWEP (Secret Web Encrypted Post) file format:
-- Used to encrypt JSON data
+- Used to encrypt JSON or binary data
 - Content is encrypted using xsalsa20-poly1305 (secretbox) with a unique key per message
 - The key is then encrypted using x25519-xsalsa20-poly1305 (box) for each recipient.
 - The encrypted keys are stored in a header that allocates enough room for 8 recipients at a time. This helps hide the number of recipients
+- In addition to the data, the content contains the following:
+	- `{timestap (unix) (8 bytes)}{format (1 byte)}{typeLength (1 byte)}{type (typeLength bytes)}{content (rest of message)}`
+	- The `type` is encoded in utf8 with it's length prefixed. Limited to 255 bytes
+	- A `timestamp` which is a 8byte integer representing the time in MS since the Unix epoch
+	- A `format` byte which is `0x01` for binary and `0x02` for JSON
+- The contents are signed using ed25519 and the signature is boxed using the libsodium `sign` function
 - The number of recipient groups, the header, and the message contents are then appended together and saved with the `swep` extension
 
 SWEF (Secret Web Encrypted File) file format:
